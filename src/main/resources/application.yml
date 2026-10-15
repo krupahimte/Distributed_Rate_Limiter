@@ -17,6 +17,9 @@ rate-limiter:
 
 server:
   port: ${SERVER_PORT:8080}
+  # Use Tomcat's RemoteIpValve: X-Forwarded-For is trusted only from internal proxies
+  # (10/8, 172.16/12, 192.168/16, loopback), e.g. nginx on the Docker network.
+  forward-headers-strategy: native
 
 management:
   endpoints:
