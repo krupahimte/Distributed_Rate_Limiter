@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { API_BASE_URL, fetchEndpoints, type EndpointInfo } from './api.ts'
+import { Playground } from './components/Playground.tsx'
 
-// Placeholder: lists the rate-limited endpoints to prove the API client and CORS work.
-// The playground UI replaces this in the next step.
 export default function App() {
   const [endpoints, setEndpoints] = useState<EndpointInfo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -15,19 +14,23 @@ export default function App() {
 
   return (
     <main>
-      <h1>Rate Limiter Playground</h1>
-      <p>API: {API_BASE_URL}</p>
-      {error && <p role="alert">Could not reach the API: {error}</p>}
-      {!endpoints && !error && <p>Loading endpoints…</p>}
-      {endpoints && (
-        <ul>
-          {endpoints.map((endpoint) => (
-            <li key={`${endpoint.method} ${endpoint.path}`}>
-              {endpoint.method} {endpoint.path}: {endpoint.algorithm}, {endpoint.capacity} burst
-            </li>
-          ))}
-        </ul>
+      <header className="page-header">
+        <h1>Rate Limiter Playground</h1>
+        <p className="muted">
+          Fire a burst of requests at a rate-limited endpoint and watch each one get allowed (200) or
+          blocked (429). API: <code>{API_BASE_URL}</code>
+        </p>
+      </header>
+
+      {error && (
+        <p className="error" role="alert">
+          Could not reach the API ({error}). Start it with <code>docker compose up</code> or{' '}
+          <code>./mvnw spring-boot:run</code>.
+        </p>
       )}
+      {!endpoints && !error && <p className="muted">Loading endpoints…</p>}
+      {endpoints && endpoints.length === 0 && <p className="error">The API reports no rate-limited endpoints.</p>}
+      {endpoints && endpoints.length > 0 && <Playground endpoints={endpoints} />}
     </main>
   )
 }
