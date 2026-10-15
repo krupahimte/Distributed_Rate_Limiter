@@ -49,7 +49,10 @@ abstract class AbstractAlgorithmIntegrationTest extends RedisIntegrationTestSupp
         assertThat(rejected.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(rejected.getHeaders().getFirst("X-RateLimit-Limit")).isEqualTo("5");
         assertThat(rejected.getHeaders().getFirst("X-RateLimit-Remaining")).isEqualTo("0");
-        assertThat(Long.parseLong(rejected.getHeaders().getFirst("Retry-After"))).isBetween(1L, 60L);
+        // 5 per 60 s window. Token bucket and sliding log need at most 60 s. The sliding window
+        // counter can need longer: if all 5 fell in the current fixed window, it must wait for that
+        // window to end and then 12 s more, until 5 * (1 - x) + 1 <= 5, so up to 72 s.
+        assertThat(Long.parseLong(rejected.getHeaders().getFirst("Retry-After"))).isBetween(1L, 72L);
         assertThat(rejected.getBody()).contains("\"status\":429").contains("Too Many Requests");
     }
 
