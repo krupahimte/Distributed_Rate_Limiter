@@ -82,7 +82,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Start two instances behind nginx
-        run: docker compose up -d --no-build --wait
+        run: docker compose up -d --no-build --wait redis app1 app2 nginx
 
       - name: Smoke test shared rate limit
         run: bash scripts/smoke-test.sh

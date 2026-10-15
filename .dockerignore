@@ -7,3 +7,4 @@ target/
 Dockerfile
 docker-compose.yml
 nginx/
+frontend/

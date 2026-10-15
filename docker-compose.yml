@@ -1,6 +1,8 @@
-# Two app instances behind nginx, sharing one Redis, to demonstrate distributed rate limiting.
+# Two app instances behind nginx, sharing one Redis, to demonstrate distributed rate limiting,
+# plus the Rate Limiter Playground UI.
 #   docker compose up --build
-#   curl -i -H "X-User-Id: alice" "http://localhost:8080/api/search?q=redis"
+#   UI:  http://localhost:3000
+#   API: curl -i -H "X-User-Id: alice" "http://localhost:8080/api/search?q=redis"
 # Pick the algorithm with RATE_LIMITER_ALGORITHM=token-bucket | sliding-window-log | sliding-window-counter
 
 x-app: &app
@@ -48,4 +50,17 @@ services:
         condition: service_healthy
       app2:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Rate Limiter Playground: static React app; the browser calls the API at localhost:8080 (CORS)
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${PLAYGROUND_API_URL:-http://localhost:8080}
+    image: rate-limiter-playground:local
+    ports:
+      - "3000:80"
+    depends_on:
+      - nginx
     restart: unless-stopped
