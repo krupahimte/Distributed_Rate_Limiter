@@ -6,6 +6,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       timeout: 500ms
+      # Keep short so a Redis outage triggers fail-open/closed quickly (Lettuce default is 10s)
+      connect-timeout: 500ms
 
 rate-limiter:
   enabled: true
