@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react'
 import { API_BASE_URL, fetchEndpoints, type EndpointInfo } from './api.ts'
+import { ComparePanel } from './components/ComparePanel.tsx'
 import { Playground } from './components/Playground.tsx'
+
+type Mode = 'single' | 'compare'
+
+const MODES: { id: Mode; label: string }[] = [
+  { id: 'single', label: 'Single endpoint' },
+  { id: 'compare', label: 'Compare algorithms' },
+]
 
 export default function App() {
   const [endpoints, setEndpoints] = useState<EndpointInfo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<Mode>('single')
 
   useEffect(() => {
     fetchEndpoints()
@@ -30,7 +39,25 @@ export default function App() {
       )}
       {!endpoints && !error && <p className="muted">Loading endpoints…</p>}
       {endpoints && endpoints.length === 0 && <p className="error">The API reports no rate-limited endpoints.</p>}
-      {endpoints && endpoints.length > 0 && <Playground endpoints={endpoints} />}
+      {endpoints && endpoints.length > 0 && (
+        <>
+          <nav className="tabs" role="tablist" aria-label="Mode">
+            {MODES.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={mode === id}
+                className={mode === id ? 'tab active' : 'tab'}
+                onClick={() => setMode(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          {mode === 'single' ? <Playground endpoints={endpoints} /> : <ComparePanel endpoints={endpoints} />}
+        </>
+      )}
     </main>
   )
 }
