@@ -7,6 +7,14 @@ spring:
       port: ${REDIS_PORT:6379}
       timeout: 500ms
 
+rate-limiter:
+  enabled: true
+  # token-bucket | sliding-window-log | sliding-window-counter
+  algorithm: ${RATE_LIMITER_ALGORITHM:token-bucket}
+  # Allow requests when Redis is unavailable (true) or reject them (false)
+  fail-open: true
+  key-prefix: rate_limit
+
 server:
   port: ${SERVER_PORT:8080}
 
