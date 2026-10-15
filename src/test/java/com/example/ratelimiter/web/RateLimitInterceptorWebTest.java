@@ -36,7 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * so no Redis is needed.
  */
 @WebMvcTest
-@Import({RateLimiterConfig.class, RateLimitKeyResolver.class, RateLimitInterceptorWebTest.TestController.class})
+@Import({RateLimiterConfig.class, RateLimitKeyResolver.class, MockLimiterRegistry.class,
+        RateLimitInterceptorWebTest.TestController.class})
 class RateLimitInterceptorWebTest {
 
     @RestController

@@ -1,6 +1,7 @@
 package com.example.ratelimiter.config;
 
 import com.example.ratelimiter.algorithm.FailSafeRateLimiter;
+import com.example.ratelimiter.algorithm.RateLimiterRegistry;
 import com.example.ratelimiter.algorithm.SlidingWindowCounterRateLimiter;
 import com.example.ratelimiter.algorithm.SlidingWindowLogRateLimiter;
 import com.example.ratelimiter.algorithm.TokenBucketRateLimiter;
@@ -64,6 +65,31 @@ class RateLimiterSelectionConfigTest {
     void appliesFailClosedSetting() {
         runner.withPropertyValues("rate-limiter.fail-open=false")
                 .run(context -> assertThat(context.getBean(FailSafeRateLimiter.class).failOpen()).isFalse());
+    }
+
+    @Test
+    void registryOffersEveryAlgorithmWrappedInFailSafeDecorator() {
+        runner.withPropertyValues("rate-limiter.fail-open=false").run(context -> {
+            RateLimiterRegistry registry = context.getBean(RateLimiterRegistry.class);
+
+            for (Algorithm algorithm : Algorithm.values()) {
+                RateLimiter limiter = registry.limiterFor(algorithm);
+                assertThat(limiter).isInstanceOf(FailSafeRateLimiter.class);
+                FailSafeRateLimiter failSafe = (FailSafeRateLimiter) limiter;
+                assertThat(failSafe.delegate()).isSameAs(context.getBean(implementationOf(algorithm)));
+                assertThat(failSafe.failOpen()).isFalse();
+            }
+        });
+    }
+
+    @Test
+    void primaryLimiterIsTheRegistryDefault() {
+        runner.withPropertyValues("rate-limiter.algorithm=sliding-window-counter").run(context -> {
+            RateLimiterRegistry registry = context.getBean(RateLimiterRegistry.class);
+
+            assertThat(registry.defaultAlgorithm()).isEqualTo(Algorithm.SLIDING_WINDOW_COUNTER);
+            assertThat(context.getBean(RateLimiter.class)).isSameAs(registry.defaultLimiter());
+        });
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.example.ratelimiter.annotation;
 
+import com.example.ratelimiter.core.Algorithm;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -19,6 +21,9 @@ import java.time.temporal.ChronoUnit;
  * <pre>{@code
  * // Up to 10 requests at once, then 10 more per minute, per user
  * @RateLimit(capacity = 10, refillRate = 10, refillPeriod = 1, unit = ChronoUnit.MINUTES, key = KeyType.USER)
+ *
+ * // Same, but always using the sliding window log regardless of rate-limiter.algorithm
+ * @RateLimit(capacity = 10, refillRate = 10, unit = ChronoUnit.MINUTES, algorithm = Algorithm.SLIDING_WINDOW_LOG)
  * }</pre>
  */
 @Documented
@@ -44,4 +49,11 @@ public @interface RateLimit {
      * Defaults to {@code ClassName.methodName}.
      */
     String name() default "";
+
+    /**
+     * Algorithm for this endpoint only. Leave empty (the default) to use {@code rate-limiter.algorithm}
+     * from application.yml. At most one value; it is an array only because annotation attributes
+     * cannot default to {@code null}.
+     */
+    Algorithm[] algorithm() default {};
 }

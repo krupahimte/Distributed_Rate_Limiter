@@ -1,5 +1,6 @@
 package com.example.ratelimiter.web;
 
+import com.example.ratelimiter.algorithm.RateLimiterRegistry;
 import com.example.ratelimiter.annotation.RateLimit;
 import com.example.ratelimiter.config.RateLimiterProperties;
 import com.example.ratelimiter.core.RateLimitResult;
@@ -34,17 +35,20 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     public static final String LIMIT_HEADER = "X-RateLimit-Limit";
     public static final String REMAINING_HEADER = "X-RateLimit-Remaining";
 
-    private final RateLimiter rateLimiter;
+    private final RateLimiterRegistry registry;
     private final RateLimitKeyResolver keyResolver;
     private final RateLimiterProperties properties;
     private final ObjectMapper objectMapper;
 
-    /** Annotation values never change at runtime, so each method's rule is built once. */
-    private final Map<Method, RateLimitRule> rules = new ConcurrentHashMap<>();
+    /** Annotation values never change at runtime, so each method's rule and limiter are looked up once. */
+    private final Map<Method, MethodLimit> methodLimits = new ConcurrentHashMap<>();
 
-    public RateLimitInterceptor(RateLimiter rateLimiter, RateLimitKeyResolver keyResolver,
+    private record MethodLimit(RateLimitRule rule, RateLimiter limiter) {
+    }
+
+    public RateLimitInterceptor(RateLimiterRegistry registry, RateLimitKeyResolver keyResolver,
                                 RateLimiterProperties properties, ObjectMapper objectMapper) {
-        this.rateLimiter = rateLimiter;
+        this.registry = registry;
         this.keyResolver = keyResolver;
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -62,9 +66,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         Method method = handlerMethod.getMethod();
-        RateLimitRule rule = rules.computeIfAbsent(method, m -> RateLimitRule.from(rateLimit));
+        MethodLimit limit = methodLimits.computeIfAbsent(method,
+                m -> new MethodLimit(RateLimitRule.from(rateLimit), registry.limiterFor(rateLimit)));
         String key = keyResolver.resolve(request, rateLimit, method);
-        RateLimitResult result = rateLimiter.tryAcquire(key, rule);
+        RateLimitResult result = limit.limiter().tryAcquire(key, limit.rule());
 
         response.setHeader(LIMIT_HEADER, Long.toString(result.limit()));
         response.setHeader(REMAINING_HEADER, Long.toString(result.remaining()));

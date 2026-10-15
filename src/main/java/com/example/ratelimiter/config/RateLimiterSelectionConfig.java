@@ -1,6 +1,7 @@
 package com.example.ratelimiter.config;
 
 import com.example.ratelimiter.algorithm.FailSafeRateLimiter;
+import com.example.ratelimiter.algorithm.RateLimiterRegistry;
 import com.example.ratelimiter.algorithm.SlidingWindowCounterRateLimiter;
 import com.example.ratelimiter.algorithm.SlidingWindowLogRateLimiter;
 import com.example.ratelimiter.algorithm.TokenBucketRateLimiter;
@@ -16,32 +17,44 @@ import org.springframework.context.annotation.Primary;
 
 import java.time.Clock;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Chooses the algorithm configured in {@code rate-limiter.algorithm} and wraps it with
- * fail-open/fail-closed handling.
+ * Wraps every algorithm with fail-open/fail-closed handling and makes the one configured in
+ * {@code rate-limiter.algorithm} the default. Endpoints may pick another with
+ * {@code @RateLimit(algorithm = ...)}.
  */
 @Configuration
 public class RateLimiterSelectionConfig {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimiterSelectionConfig.class);
 
+    @Bean
+    public RateLimiterRegistry rateLimiterRegistry(TokenBucketRateLimiter tokenBucket,
+                                                   SlidingWindowLogRateLimiter slidingWindowLog,
+                                                   SlidingWindowCounterRateLimiter slidingWindowCounter,
+                                                   RateLimiterProperties properties) {
+        List<RateLimiter> candidates = List.of(tokenBucket, slidingWindowLog, slidingWindowCounter);
+        Map<Algorithm, FailSafeRateLimiter> limiters = new EnumMap<>(Algorithm.class);
+        for (Algorithm algorithm : Algorithm.values()) {
+            limiters.put(algorithm, new FailSafeRateLimiter(
+                    select(algorithm, candidates), properties.failOpen(), Clock.systemUTC()));
+        }
+        log.info("Rate limiting with {} (fail-{} when Redis is unavailable)",
+                properties.algorithm(), properties.failOpen() ? "open" : "closed");
+        return new RateLimiterRegistry(limiters, properties.algorithm());
+    }
+
     /**
-     * The limiter the rest of the app uses. {@code @Primary} makes it win over the three
+     * The default limiter (the configured algorithm). {@code @Primary} makes it win over the three
      * algorithm beans wherever a {@link RateLimiter} is injected.
      */
     @Bean
     @Primary
-    public FailSafeRateLimiter rateLimiter(TokenBucketRateLimiter tokenBucket,
-                                           SlidingWindowLogRateLimiter slidingWindowLog,
-                                           SlidingWindowCounterRateLimiter slidingWindowCounter,
-                                           RateLimiterProperties properties) {
-        RateLimiter selected = select(properties.algorithm(),
-                List.of(tokenBucket, slidingWindowLog, slidingWindowCounter));
-        log.info("Rate limiting with {} (fail-{} when Redis is unavailable)",
-                selected.algorithm(), properties.failOpen() ? "open" : "closed");
-        return new FailSafeRateLimiter(selected, properties.failOpen(), Clock.systemUTC());
+    public RateLimiter rateLimiter(RateLimiterRegistry registry) {
+        return registry.defaultLimiter();
     }
 
     static RateLimiter select(Algorithm algorithm, Collection<? extends RateLimiter> candidates) {

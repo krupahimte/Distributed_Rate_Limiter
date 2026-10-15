@@ -1,5 +1,6 @@
 package com.example.ratelimiter.web;
 
+import com.example.ratelimiter.algorithm.RateLimiterRegistry;
 import com.example.ratelimiter.annotation.RateLimit;
 import com.example.ratelimiter.config.RateLimiterProperties;
 import com.example.ratelimiter.core.Algorithm;
@@ -17,7 +18,10 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.resource.ResourceHttpRequestHandler;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
@@ -34,6 +38,9 @@ class RateLimitInterceptorTest {
     @Mock
     private RateLimiter rateLimiter;
 
+    @Mock
+    private RateLimiter slidingWindowLog;
+
     private final MockHttpServletRequest request = new MockHttpServletRequest();
     private final MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -42,16 +49,64 @@ class RateLimitInterceptorTest {
         public String limited() {
             return "ok";
         }
+
+        @RateLimit(capacity = 3, refillRate = 1, algorithm = Algorithm.SLIDING_WINDOW_LOG)
+        public String overridden() {
+            return "ok";
+        }
+
+        @RateLimit(capacity = 3, refillRate = 1,
+                algorithm = {Algorithm.SLIDING_WINDOW_LOG, Algorithm.TOKEN_BUCKET})
+        public String twoAlgorithms() {
+            return "ok";
+        }
     }
 
     private RateLimitInterceptor interceptor(boolean enabled) {
         RateLimiterProperties properties = new RateLimiterProperties(enabled, Algorithm.TOKEN_BUCKET, true, "rl");
-        return new RateLimitInterceptor(rateLimiter, new RateLimitKeyResolver(properties), properties,
+        RateLimiterRegistry registry = new RateLimiterRegistry(Map.of(
+                Algorithm.TOKEN_BUCKET, rateLimiter,
+                Algorithm.SLIDING_WINDOW_LOG, slidingWindowLog), Algorithm.TOKEN_BUCKET);
+        return new RateLimitInterceptor(registry, new RateLimitKeyResolver(properties), properties,
                 new ObjectMapper());
     }
 
     private static HandlerMethod limitedHandler() throws NoSuchMethodException {
-        return new HandlerMethod(new Endpoints(), Endpoints.class.getMethod("limited"));
+        return handler("limited");
+    }
+
+    private static HandlerMethod handler(String methodName) throws NoSuchMethodException {
+        return new HandlerMethod(new Endpoints(), Endpoints.class.getMethod(methodName));
+    }
+
+    @Test
+    void usesConfiguredDefaultAlgorithmWhenAnnotationHasNoOverride() throws Exception {
+        when(rateLimiter.tryAcquire(anyString(), any())).thenReturn(RateLimitResult.allowed(3, 2));
+
+        interceptor(true).preHandle(request, response, limitedHandler());
+
+        verify(rateLimiter).tryAcquire(anyString(), any());
+        verifyNoInteractions(slidingWindowLog);
+    }
+
+    @Test
+    void usesAlgorithmOverrideFromAnnotation() throws Exception {
+        when(slidingWindowLog.tryAcquire(anyString(), any())).thenReturn(RateLimitResult.allowed(3, 2));
+
+        interceptor(true).preHandle(request, response, handler("overridden"));
+
+        verify(slidingWindowLog).tryAcquire(anyString(), any());
+        verifyNoInteractions(rateLimiter);
+        assertThat(response.getHeader("X-RateLimit-Remaining")).isEqualTo("2");
+    }
+
+    @Test
+    void rejectsMoreThanOneAlgorithmOnAnEndpoint() {
+        RateLimitInterceptor interceptor = interceptor(true);
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> interceptor.preHandle(request, response, handler("twoAlgorithms")))
+                .withMessageContaining("at most one algorithm");
     }
 
     @Test

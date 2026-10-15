@@ -4,6 +4,7 @@ import com.example.ratelimiter.config.RateLimiterConfig;
 import com.example.ratelimiter.core.RateLimitResult;
 import com.example.ratelimiter.core.RateLimitRule;
 import com.example.ratelimiter.core.RateLimiter;
+import com.example.ratelimiter.web.MockLimiterRegistry;
 import com.example.ratelimiter.web.RateLimitKeyResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * The limiter is mocked; real Redis behaviour is covered by the integration tests.
  */
 @WebMvcTest(DemoController.class)
-@Import({RateLimiterConfig.class, RateLimitKeyResolver.class})
+@Import({RateLimiterConfig.class, RateLimitKeyResolver.class, MockLimiterRegistry.class})
 @TestPropertySource(properties = "app.instance-id=test-instance")
 class DemoControllerTest {
 
